@@ -1,0 +1,134 @@
+//Lab 6 Part A - Jonathan Venegas , Krish Sareen
+#include <msp430.h> 
+
+
+/**
+ * main.c
+ */
+void LCD_command(unsigned char);
+void LCD_write(unsigned char);
+void LCD_init(void);
+unsigned int adc_raw;
+
+
+int main(void)
+{
+	WDTCTL = WDTPW | WDTHOLD;	// stop watchdog timer
+	PM5CTL0 &= ~LOCKLPM5; //clear LOCKPM5 bit
+	P3DIR |= 0xFF;
+	P3OUT &= ~0xFF;
+	P8DIR |= 0x0E;
+	P8OUT &= ~0x0E;
+	LCD_init(); //initialize
+
+	//ADC
+	P4DIR |= 0x01; //set 4.1
+	P4SEL1 |= BIT1;
+	P4SEL0 |= BIT1;
+	ADC12CTL0 = ADC12SHT0_6|ADC12ON; // adc ctl0
+	ADC12CTL1 = ADC12SHP; //adc ctl1
+	ADC12CTL2 = ADC12RES_2; // 12 bit
+	ADC12MCTL0 = ADC12INCH_9; // set input channel as 9
+
+	while(1) {
+	    P3DIR |= 0xFF;
+	            P3OUT &= ~0xFF;
+	          P8DIR |= 0x0E;
+	            P8OUT &= ~0x0E;
+	    LCD_command(0xC0);
+	    __delay_cycles(300);
+	    LCD_write('K');
+        LCD_write('R');
+        LCD_write('I');
+        LCD_write('S');
+        LCD_write('H');
+        LCD_write(' ');
+        LCD_write('J');
+        LCD_write('O');
+        LCD_write('N');
+        LCD_write('A');
+        LCD_write('T');
+        LCD_write('H');
+        LCD_write('A');
+        LCD_write('N');
+
+	// ADC
+
+        ADC12CTL0 |= ADC12ENC|ADC12SC; //start conversion
+        if((ADC12IFGR0 & BIT0) == 1) {
+           adc_raw = ADC12MEM0; // set buffer as value measured
+        }
+        __delay_cycles(15000);
+
+        //(3.3/4096) * val
+            int x = 0;
+            int a = 0,b = 0,c = 0,d = 0;
+        //////////////////////////////////////////////////
+        //value should be in this format//////////////////
+            float val = adc_raw/(1000.0) + 0.0001;
+        //////////////////////////////////////////////////
+            x = (val*1000);
+            d = (x%10);
+            x = (val*100);
+            c = (x%10);
+            x = (val*10);
+            b = (x%10);
+            x = (val*1);
+            a = (x%10);
+            x = (val*1000);
+            unsigned char first = a+48;
+            unsigned char second = b+48;
+            unsigned char third = c+48;
+            unsigned char fourth = d+48;
+
+        __delay_cycles(200000);
+
+        //writes converted NADC values
+            LCD_command(0x80); //start of first line
+            __delay_cycles(300);
+            LCD_write(first);
+            LCD_write(second);
+            LCD_write(third);
+            LCD_write(fourth);
+
+	}
+
+	return 0;
+}
+
+void LCD_command(unsigned char in) {
+    P3OUT = in;
+    P8OUT &= ~BIT3; // clear RS bit
+    P8OUT &= ~BIT2; //clear read / write enable
+    P8OUT |= BIT1; //set enable
+    __delay_cycles(200);
+    P8OUT &= ~BIT1; //clear enable and create falling edge
+}
+
+void LCD_write(unsigned char in) {
+    P3OUT = in;
+    P8OUT |= BIT3; //set RS bit
+    P8OUT &= ~BIT2; // clear read/write
+    P8OUT |= BIT1; // set enable
+    __delay_cycles(200);
+    P8OUT &= ~BIT1; //clear enable
+}
+
+void LCD_init(){
+    P8OUT &= ~BIT1;
+    __delay_cycles(15000);
+    LCD_command(0x30);
+    __delay_cycles(300);
+    LCD_command(0x30);
+    __delay_cycles(300);
+    LCD_command(0x38);
+    LCD_command(0x10);
+    LCD_command(0x0F);
+    LCD_command(0x06);
+    LCD_command(0x01);
+    __delay_cycles(3000);
+}
+
+
+
+

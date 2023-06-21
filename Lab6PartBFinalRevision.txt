@@ -1,0 +1,164 @@
+//Lab 6 Part B - Jonathan Venegas , Krish Sareen
+
+#include <msp430.h>
+
+void LCD_command(unsigned char);
+void LCD_write(unsigned char);
+void LCD_init(void);
+
+unsigned int adc_raw;
+
+int main(void){
+    WDTCTL = WDTPW | WDTHOLD;
+    PM5CTL0 &= ~LOCKLPM5;
+
+    //ADC
+    P4DIR |= 0x01; //set 4.1
+    P4SEL1 |= BIT1;
+    P4SEL0 |= BIT1;
+    ADC12CTL0 = ADC12SHT0_6|ADC12ON; // adc ctl0
+    ADC12CTL1 = ADC12SHP; //adc ctl1
+    ADC12CTL2 = ADC12RES_2; // 12 bit
+    ADC12MCTL0 = ADC12INCH_9; // set input channel as 9
+
+    P3DIR |= 0xFF;
+    P3OUT &= ~0xFF;
+    P8DIR |= 0x0E;
+    P8OUT &= ~0x0E;
+    LCD_init();
+    while(1) {
+        //ADC
+        ADC12CTL0 |= ADC12ENC|ADC12SC; //start conversion
+        if((ADC12IFGR0 & BIT0) == 1) {
+            adc_raw = ADC12MEM0; // set buffer as value measured
+        }
+
+        __delay_cycles(15000);
+
+        //LCD
+        P3DIR |= 0xFF;
+        P3OUT &= ~0xFF;
+        P8DIR |= 0x0E;
+        P8OUT &= ~0x0E;
+    //LCD write
+    //variable will be given
+    //float or double val
+    //0 ~ 4095 => MAP => 0V ~ 3.3
+    //(3.3/4096) * val
+        int x = 0;
+        int a = 0,b = 0,c = 0,d = 0;
+    //////////////////////////////////////////////////
+    //value should be in this format//////////////////
+        float val = adc_raw/(1000.0) + 0.0001; //add due to float rounding
+    //////////////////////////////////////////////////
+        x = (val*1000);
+        d = (x%10);
+        x = (val*100);
+        c = (x%10);
+        x = (val*10);
+        b = (x%10);
+        x = (val*1);
+        a = (x%10);
+        x = (val*1000);
+        unsigned char first = a+48;
+        unsigned char second = b+48;
+        unsigned char third = c+48;
+        unsigned char fourth = d+48;
+
+    //writes converted NADC values
+        LCD_command(0x80); //start of first line
+        __delay_cycles(300);
+        LCD_write(first);
+        LCD_write(second);
+        LCD_write(third);
+        LCD_write(fourth);
+
+        float convertedVal = (3.3/4095) * (1000*val);
+        x = (convertedVal*1000);
+        d = (x%10);
+        x = (convertedVal*100);
+        c = (x%10);
+        x = (convertedVal*10);
+        b = (x%10);
+        x = (convertedVal*1);
+        a = (x%10);
+        x = (convertedVal*1000);
+        first = a+48;
+        second = b+48;
+        third = c+48;
+        fourth = d+48;
+
+    //writes converted voltage values
+        LCD_command(0xC0); //start of second line
+        __delay_cycles(300);
+        LCD_write(first);
+        LCD_write('.');
+        LCD_write(second);
+        LCD_write(third);
+        LCD_write(fourth);
+
+
+    //LEDs must operate depending on the measured voltage
+    //measured voltage given by convertedVal
+    // int light8 = 0xFE; // light 7 1111 1110 (default)
+    // int light7 = 0xFD; // light 6 1111 1101
+    // int light5 = 0xFB; // light 5 1111 1011
+    // int light6 = 0xF7; // light 4 1111 0111
+    // int light4 = 0xEF; // light 3 1110 1111
+    // int light3 = 0xDF; // light 2 1101 1111
+    // int light2 = 0xBF; // light 1 1011 1111
+    // int light1 = 0x7F; // light 0 0111 1111
+
+    P6DIR |= 0xFF; //Port 3 LEDs as output
+    P6OUT |= 0xFF; //set out as high by default, active low LEDs
+    //not sure if this will affect previous code
+    P6REN |= 0xFF; //Resistor enable high, pull up
+        if (convertedVal < 1){
+        P6OUT = 0xFF; //no LEDs ON
+        }
+        else if (convertedVal < 2){
+        P6OUT = 0xFE; //rightmost LED ON
+        }
+        else if (convertedVal < 3){
+        P6OUT = 0xFD; //second from right ON
+        }
+        else{
+        P6OUT = 0xFB; //third from right ON
+        }
+        __delay_cycles(200000);
+    }
+    return 0;
+}
+
+void LCD_command(unsigned char in) {
+    P3OUT = in;
+    P8OUT &= ~BIT3;
+    P8OUT &= ~BIT2;
+    P8OUT |= BIT1;
+    __delay_cycles(200);
+    P8OUT &= ~BIT1;
+}
+
+void LCD_write(unsigned char in){
+    P3OUT = in;
+    P8OUT |= BIT3;
+    P8OUT &= ~BIT2;
+    P8OUT |= BIT1;
+    __delay_cycles(200);
+    P8OUT &= ~BIT1;
+}
+
+void LCD_init(){
+    P8OUT &= ~BIT1;
+    __delay_cycles(15000);
+    LCD_command(0x30);
+    __delay_cycles(300);
+    LCD_command(0x30);
+    __delay_cycles(300);
+    LCD_command(0x38);
+    LCD_command(0x10);
+    LCD_command(0x0F);
+    LCD_command(0x06);
+    LCD_command(0x01);
+    __delay_cycles(3000);
+}
